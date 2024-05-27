@@ -1,8 +1,12 @@
+import enum
+import time
+import random
 import numpy as np
 import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 
@@ -10,25 +14,32 @@ class Net(nn.Module):
     def __init__(self, input_shape, actions_count,train_buffer_size=300,lr=0.001):
         super(Net, self).__init__()
 
+        l1=100
+        l2=50
+
+        p1=20
+
+        v1=30
+
         self.train_buffer=[]
         self.train_buffer_size=train_buffer_size
         self.input_size = int(np.prod(input_shape))
         self.body = nn.Sequential(
-            nn.Linear(self.input_size, 200),
+            nn.Linear(self.input_size, l1),
             nn.ELU(),
-            nn.Linear(200, 200),
+            nn.Linear(l1, l2),
             nn.ELU()
         )
         self.policy = nn.Sequential(
-            nn.Linear(200, 100),
+            nn.Linear(l2, p1),
             nn.ELU(),
-            nn.Linear(100, actions_count),
+            nn.Linear(p1, actions_count),
             nn.Softmax(dim=1)
         )
         self.value = nn.Sequential(
-            nn.Linear(200, 100),
+            nn.Linear(l2, v1),
             nn.ELU(),
-            nn.Linear(100, 1)
+            nn.Linear(v1, 1)
         )
 
         self.History={
@@ -73,9 +84,17 @@ class Net(nn.Module):
                 policy,value=self(sample["x"])
                 w=sample["weight"][:,None]
 
+                #print(f"{value = }")
+                #print(f"{policy = }")
+                #print(f"{w = }")
+
+                #print(f"{sample['value_tgt'][:,None] = }")
+                #print(f"{sample['policy_tgt'] = }")
                 vl=(value-sample["value_tgt"][:,None])**2
                 pl=(policy-sample["policy_tgt"])**2
                 pl=torch.sum(pl,dim=-1)[:,None]
+                #print(f"{pl = }")
+                #print(f"{vl =}")
                 er=torch.sum((vl+pl)*w)/torch.sum(w)
                 loss+=er
 
@@ -101,6 +120,8 @@ class Net(nn.Module):
     def plot_History(self):
 
         plt.plot(np.array(self.History["solution_length"]),label="solution length")
+        #plt.plot(self.History["policy_loss"],label="policy loss not weigthed")
+        #plt.plot(self.History["value_loss"],label="value loss not weigted")
         plt.plot(np.array(self.History["training_loss"])/10,label="training_loss (weigthed)")
 
         plt.legend()

@@ -61,16 +61,12 @@ class Env:
         return f"Env(vG{self.state})"
 
     
-    ### node labels ###
+    ### Visualization , kann weg ###
 
     def to_tex(self):
 
         beg=r"$("
         end=r"$)"
-
         st =[repr(s) for s in self.state.state]
-
         body=",".join(st)
-
-
         return beg + body + end

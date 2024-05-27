@@ -1,6 +1,5 @@
 
 
-# adds "print input and output" to a function
 
 def LOG_IT(fnk):
     def new_funk(*args,**kwargs):

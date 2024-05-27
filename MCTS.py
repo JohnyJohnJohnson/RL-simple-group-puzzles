@@ -12,9 +12,10 @@ import networkx as nx
 class MCT:  # global tree responsibilities
 
     @LOG
-    def __init__(self,modell,Env,c_param=1,viLoss_param=1,state=None, DEBUG=False,k_scramble=0,abelsch=False):
+    def __init__(self,modell,Env,c_param=1,viLoss_param=1,state=None, DEBUG=False,k_scramble=0,policy_trust=0,abelsch=False):
         self.DEBUG=DEBUG
         self.nodeCnt=0
+        self.policy_trust=policy_trust
         self.viLoss_param=viLoss_param
         self.modell=modell
         self.abelsch=abelsch
@@ -46,7 +47,7 @@ class MCT:  # global tree responsibilities
         selected.update_backprop()
         return solved_state
 
-    def display_tree(self,save_as=None,size_factor=1):
+    def display_tree(self,save_as=None,size_factor=1,fontMultiplyer=1):
         size_factor*=10
         self.G=nx.DiGraph()
         self.edgeList=[]
@@ -55,11 +56,13 @@ class MCT:  # global tree responsibilities
         self.sizes={}
 
         self.root._addToDisplay()
+        #self.G.add_nodes_from(self.nodeLabels)
+        #self.G.add_edges_from(self.edgeList)
         pos = nx.nx_agraph.graphviz_layout(self.G, prog="twopi")
         node_colors = [self.colors[key] for key in self.G.nodes.keys()]
         node_sizes = [np.sqrt(self.sizes[key])*size_factor for key in self.G.nodes.keys()]
-        nx.draw(self.G,pos=pos,node_color=node_colors,node_size=node_sizes,labels=self.nodeLabels,font_size=2)
-        nx.draw_networkx_edge_labels(self.G,pos=pos,font_size=1)
+        nx.draw(self.G,pos=pos,node_color=node_colors,node_size=node_sizes,labels=self.nodeLabels,font_size=2*fontMultiplyer)
+        nx.draw_networkx_edge_labels(self.G,pos=pos,font_size=2*fontMultiplyer)
         if save_as is not None:
             plt.savefig(save_as)
         plt.show()
@@ -99,8 +102,6 @@ class MCT_element:  # local tree responsibilities
         self.predicted_value=float(value[0][0])
         self.DB(f"{policy = } \n\n {value = }")
 
-        ###################################################################
-        #### Memories to be as close to the paper notation as possible ####
         mem={
             "W":{a:min(float(value[0][0].numpy()),-1.0) for a in self.mct.Env.Actions},
             "N":{a:0 for a in self.mct.Env.Actions},
@@ -108,19 +109,15 @@ class MCT_element:  # local tree responsibilities
             "L":{a:0 for a in self.mct.Env.Actions}  
         }
         self.mem=mem
-        ####                                                           ####    
-        ###################################################################
 
         # default color value for networkx display
         self.colorVal=0
         self.DB(f"in MCT_element.__init__")
         self.DB(f"{self.state}")
-        #self.value=mct.estimate_value() 
 
 
+        pass
 
-    ###############################################################
-    ###                        DEBUG                            ###
 
     def _DB_ON(*messages):
         print(*messages)
@@ -129,51 +126,37 @@ class MCT_element:  # local tree responsibilities
     def _DB_OFF(*mesages):
         pass
 
-    ###                                                         ###
-    ###############################################################
 
 
-    #################################################################
-    ### implemted acording to  https:// arxiv.org/abs/1805.07470  ###
-    ###                     on Page 5                             ###
-
-    @LOG
     def W(self,a):
-        assert max(self.mem["W"].values())<0
+        assert max(self.mem["W"].values())<=0
         return self.mem["W"][a]
 
-    @LOG 
     def L(self,a):
-        #return 0 # virtuall loss not needed
+        return 0 # virtuall loss not needed
         return self.mem["L"][a]
 
-    @LOG
     def N(self,a):
         return self.mem["N"][a]
         pass
     
-    @LOG
     def P(self,a):
         return self.mem["P"][a]
         pass
     
-    @LOG
     def U(self,a):
-        # sum_{a'} = sum_{a' \in A : a' \neq a}  ?
         self.DB(f"in MCT_element.U")
-        res=np.sqrt(sum([self.N(i) for i,action in self.mct.Env.Actions.items() if i !=a ]))+1
-        res*=self.mct.c_param *(self.P(a)) #changed
+        res=np.sqrt(sum([self.N(i) for i in self.mct.Env.Actions if i !=a ]))*self.mct.c_param
+        res*= self.P(a) 
         res/=(1+self.N(a))
+        res+=self.mct.policy_trust*self.P(a)
 
-        #self.mem["L"][a]+=self.mct.viLoss_param
         return res
     
-    @LOG
     def Q(self,a):
         return self.W(a)-self.L(a)
         
     
-    @LOG
     def A(self):            
         max_val=-np.inf
         argmax=None
@@ -184,11 +167,7 @@ class MCT_element:  # local tree responsibilities
                 max_val=cur_val
         return argmax
 
-    ###                                                           ###
-    #################################################################
 
-
-    @LOG
     def descent(self):
         if self.is_leaf():
             return self
@@ -197,16 +176,13 @@ class MCT_element:  # local tree responsibilities
         maxChild=self.childs[A]
         return maxChild.descent()
 
-    @LOG
     def get_action_chain(self):
         if self.parent is not None:
             return self.parent.get_action_chain().append(self.derivedBy)
         else:
             return []
 
-
     def get_state(self):
-        # get method for future buffering
         state= self.state
         self.DB(f" in MCT_element.get_state : {state = }")
         return state
@@ -215,14 +191,14 @@ class MCT_element:  # local tree responsibilities
     
     def is_goal(self):
         return self.mct.Env.is_goal(self.get_state())
-
-
+        pass
+    
     def is_root(self):
         if self.parent is None:
             return True
         else:
             return False
-
+        pass
 
     def is_leaf(self):
         if self.childs:
@@ -230,26 +206,25 @@ class MCT_element:  # local tree responsibilities
         else:
             return True
 
-
     def update(self):
         solved_state=None
         for i,action in self.mct.Env.Actions.items():
 
             child=MCT_element(mct=self.mct,from_element=self,action=i)
             self.childs.append(child)
+            self.mem["W"][i]=min(child.predicted_value,0)
             if child.is_goal():
                 solved_state=child
         return solved_state 
 
     
     def update_backprop(self):
-        # Changed
         if not self.is_root():
             self.parent.mem["W"][self.derivedBy]=  max(self.mem["W"].values())-1
             self.parent.mem["N"][self.derivedBy]+=1
             self.parent.mem["L"][self.derivedBy]-=self.mct.viLoss_param
-            self.parent.update_backprop()
 
+            self.parent.update_backprop()
 
 
     def get_value_and_policy_target(self):
@@ -302,7 +277,7 @@ class MCT_element:  # local tree responsibilities
             res["weight"].append(1/(i+1))
 
         if self.mct.abelsch:
-            # if abelsch order doesnt matter 
+            # if abelsch order doesnt matter
             policy_tgt=res["policy_tgt"]
             policy_tgt= np.array(policy_tgt)
             new_policy=0
@@ -312,6 +287,7 @@ class MCT_element:  # local tree responsibilities
                 new_policy_tgt.append(new_policy/new_policy.sum())
             res["policy_tgt"]=list(reversed(new_policy_tgt))
 
+
         res["policy_tgt"]=MCT_element.list_to_tensor(res["policy_tgt"]) 
         res["value_tgt"]=MCT_element.list_to_tensor(res["value_tgt"])
         res["x"]=MCT_element.list_to_tensor(res["x"])
@@ -319,9 +295,10 @@ class MCT_element:  # local tree responsibilities
 
         return res
 
-
     def _addToDisplay(self):
 
+        def rnd(exp):
+            return f"{exp: 0.2f}"
 
         if self.is_goal():
             color="#AA4444"
@@ -334,9 +311,7 @@ class MCT_element:  # local tree responsibilities
 
         self.mct.colors.update({self.id:color})
 
-        if self.is_goal():
-            size= 10
-        elif not self.is_root():
+        if not self.is_root():
             size= self.parent.mem["N"][self.derivedBy] +2
         else:
             size=sum(self.mem["N"])+3
@@ -344,12 +319,11 @@ class MCT_element:  # local tree responsibilities
         self.mct.sizes.update({self.id:size})
         self.mct.nodeLabels.update(  { self.id:f"node {self.id} \n {self.state.to_tex()}\n val_pred={self.predicted_value:0.2f}" } )
         self.mct.G.add_node(self.id)
-
-        rnd = lambda exp : f"{exp: 0.2f}"
         for a,child in enumerate(self.childs):
             self.mct.edgeList.append((self.id,child.id))
-            self.mct.G.add_edge(self.id,child.id,P=rnd(self.P(a)),W=rnd(self.W(a)),N=rnd(self.N(a)),A=self.mct.Env.Actions[a])
+            self.mct.G.add_edge(self.id,child.id,P=rnd(self.P(a)),W=rnd(self.W(a)),A=self.mct.Env.Actions[a],DEC=f"{self.Q(a)+self.U(a):0.2f}")
             child._addToDisplay()
 
+        pass
 
     
