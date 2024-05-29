@@ -58,7 +58,8 @@ class MCT:  # global tree responsibilities
         self.root._addToDisplay()
         #self.G.add_nodes_from(self.nodeLabels)
         #self.G.add_edges_from(self.edgeList)
-        pos = nx.nx_agraph.graphviz_layout(self.G, prog="twopi")
+        #pos = nx.nx_agraph.graphviz_layout(self.G, prog="twopi") # requires pygraphviz
+        pos=nx.planar_layout(self.G)
         node_colors = [self.colors[key] for key in self.G.nodes.keys()]
         node_sizes = [np.sqrt(self.sizes[key])*size_factor for key in self.G.nodes.keys()]
         nx.draw(self.G,pos=pos,node_color=node_colors,node_size=node_sizes,labels=self.nodeLabels,font_size=2*fontMultiplyer)
