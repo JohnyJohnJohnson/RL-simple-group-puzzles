@@ -62,7 +62,7 @@ class MCT:  # global tree responsibilities
         pos=nx.planar_layout(self.G)
         node_colors = [self.colors[key] for key in self.G.nodes.keys()]
         node_sizes = [np.sqrt(self.sizes[key])*size_factor for key in self.G.nodes.keys()]
-        nx.draw(self.G,pos=pos,node_color=node_colors,node_size=node_sizes,labels=self.nodeLabels,font_size=2*fontMultiplyer)
+        nx.draw_planar(self.G,node_color=node_colors,node_size=node_sizes,labels=self.nodeLabels,font_size=2*fontMultiplyer)
         nx.draw_networkx_edge_labels(self.G,pos=pos,font_size=2*fontMultiplyer)
         if save_as is not None:
             plt.savefig(save_as)
