@@ -4,3 +4,4 @@ tqdm
 matplotlib
 numpy
 graphviz
+pygraphviz
